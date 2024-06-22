@@ -22,19 +22,18 @@ import logging
 import pathlib
 import re
 import time
-from typing import Any, Callable, cast
+from typing import Any, Callable, TypedDict, cast
 from urllib.parse import urljoin
 
 import requests
 import settngs
 from comicapi import utils
-from comicapi.genericmetadata import ComicSeries, GenericMetadata, TagOrigin
+from comicapi.genericmetadata import ComicSeries, GenericMetadata, MetadataOrigin
 from comictalker import talker_utils
 from comictalker.comiccacher import ComicCacher
 from comictalker.comiccacher import Series as CCSeries
 from comictalker.comictalker import ComicTalker, TalkerDataError, TalkerNetworkError
 from pyrate_limiter import Duration, Limiter, RequestRate
-from typing_extensions import TypedDict
 
 logger = logging.getLogger(f"comictalker.{__name__}")
 
@@ -601,7 +600,7 @@ class MangaUpdatesTalker(ComicTalker):
 
     def _map_comic_issue_to_metadata(self, series: MUSeries) -> GenericMetadata:
         md = GenericMetadata(
-            tag_origin=TagOrigin(self.id, self.name),
+            data_origin=MetadataOrigin(self.id, self.name),
             series_id=utils.xlate(series["series_id"]),
             issue_id=utils.xlate(series["series_id"]),
         )
