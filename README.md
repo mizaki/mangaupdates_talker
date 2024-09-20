@@ -2,13 +2,11 @@
 
 A plugin for [Comic Tagger](https://github.com/comictagger/comictagger/releases) to allow the use of the metadata from [MangaUpdates](https://mangaupdates.com).
 
-## Work in progress
+## Installation
 
-The 'master' branch attempts to be current with comictagger 'develop' branch
+The easiest installation method as of ComicTagger 1.6.0-alpha.23 for the plugin is to place the [release](https://github.com/mizaki/mangadex_talker/releases) zip file
+`mangaupdates_talker-plugin-<version>.zip` (or wheel `.whl`) into the [plugins](https://github.com/comictagger/comictagger/wiki/Installing-plugins) directory.
 
-When using the GUI the issues window list will always be empty as MangaUpdates does not store issue level information. Clicking `OK` will tag using the available series data.
+## Development Installation
 
-## Install
-
-`pip install .`
-If ComicTagger is not installed in your Python environment already `pip install comictagger` (plus any other optional dependancies required `[GUI]` etc.)
+You can build the wheel with `tox run -m build` or clone ComicTagger and clone the talker and install the talker into the ComicTagger environment `pip install -e .`
