@@ -25,19 +25,15 @@ import time
 from typing import Any, Callable, TypedDict, cast
 from urllib.parse import urljoin
 
+import requests
 import settngs
 from comicapi import utils
 from comicapi.genericmetadata import ComicSeries, GenericMetadata, MetadataOrigin
 from comictalker import talker_utils
 from comictalker.comiccacher import ComicCacher
 from comictalker.comiccacher import Series as CCSeries
-from comictalker.comictalker import ComicTalker, RLCallBack, TalkerDataError, TalkerNetworkError
-from comictalker.vendor.pyrate_limiter import Duration, Limiter, RequestRate
-
-try:
-    import niquests as requests
-except ImportError:
-    import requests
+from comictalker.comictalker import ComicTalker, TalkerDataError, TalkerNetworkError
+from pyrate_limiter import Duration, Limiter, RequestRate
 
 logger = logging.getLogger(f"comictalker.{__name__}")
 
@@ -339,7 +335,6 @@ class MangaUpdatesTalker(ComicTalker):
         refresh_cache: bool = False,
         literal: bool = False,
         series_match_thresh: int = 90,
-        on_rate_limit: RLCallBack | None = None,
     ) -> list[ComicSeries]:
         search_series_name = utils.sanitize_title(series_name, literal)
         logger.info(f"{self.name} searching: {search_series_name}")
@@ -365,7 +360,7 @@ class MangaUpdatesTalker(ComicTalker):
             "perpage": 100,
         }
 
-        mu_response = self._get_mu_content(urljoin(self.api_url, "series/search"), params, on_rate_limit=on_rate_limit)
+        mu_response = self._get_mu_content(urljoin(self.api_url, "series/search"), params)
 
         search_results: list[MUSeries] = []
 
@@ -405,9 +400,7 @@ class MangaUpdatesTalker(ComicTalker):
             page += 1
 
             params["page"] = page
-            mu_response = self._get_mu_content(
-                urljoin(self.api_url, "series/search"), params, on_rate_limit=on_rate_limit
-            )
+            mu_response = self._get_mu_content(urljoin(self.api_url, "series/search"), params)
 
             search_results.extend(s["record"] for s in mu_response["results"])
             # search_results.extend(cast(list[MUResult], mu_response["results"]))
@@ -435,11 +428,7 @@ class MangaUpdatesTalker(ComicTalker):
         return formatted_search_results
 
     def fetch_comic_data(
-        self,
-        issue_id: str | None = None,
-        series_id: str | None = None,
-        issue_number: str = "",
-        on_rate_limit: RLCallBack | None = None,
+        self, issue_id: str | None = None, series_id: str | None = None, issue_number: str = ""
     ) -> GenericMetadata:
         comic_data = GenericMetadata()
         # Could be sent "issue_id" only which is actually series_id
@@ -447,31 +436,23 @@ class MangaUpdatesTalker(ComicTalker):
             series_id = issue_id
 
         if series_id is not None:
-            return self._map_comic_issue_to_metadata(self._fetch_series(int(series_id), on_rate_limit=on_rate_limit))
+            return self._map_comic_issue_to_metadata(self._fetch_series(int(series_id)))
 
         return comic_data
 
-    def fetch_issues_in_series(
-        self,
-        series_id: str,
-        on_rate_limit: RLCallBack | None = None,
-    ) -> list[GenericMetadata]:
+    def fetch_issues_in_series(self, series_id: str) -> list[GenericMetadata]:
         # Manga Updates has no issue level data
         return [GenericMetadata()]
 
-    def _get_mu_content(
-        self, url: str, params: dict[str, Any], on_rate_limit: RLCallBack | None = None
-    ) -> MUResponse | MUSeries | MUPublisher:
-        with limiter.ratelimit(
-            "mu",
-            delay=True,
-            on_rate_limit=on_rate_limit,
-        ):
+    @limiter.ratelimit("default", delay=True)
+    def _get_mu_content(self, url: str, params: dict[str, Any]) -> MUResponse | MUSeries | MUPublisher:
+        while True:
             mu_response = self._get_url_content(url, params)
             if mu_response.get("status") == "exception":
                 logger.debug(f"{self.name} query failed with error {mu_response['reason']}.")
                 raise TalkerNetworkError(self.name, 0, f"{mu_response['reason']}")
 
+            break
         return mu_response
 
     def _get_url_content(self, url: str, params: dict[str, Any]) -> Any:
@@ -564,10 +545,8 @@ class MangaUpdatesTalker(ComicTalker):
             format=None,
         )
 
-    def _fetch_publisher(self, pub_id: int, on_rate_limit: RLCallBack | None = None) -> MUPublisher:
-        mu_response = self._get_mu_content(
-            urljoin(self.api_url, f"publishers/{pub_id}"), {}, on_rate_limit=on_rate_limit
-        )
+    def _fetch_publisher(self, pub_id: int) -> MUPublisher:
+        mu_response = self._get_mu_content(urljoin(self.api_url, f"publishers/{pub_id}"), {})
 
         return cast(MUPublisher, mu_response)
 
@@ -587,14 +566,10 @@ class MangaUpdatesTalker(ComicTalker):
 
         return filtered_list
 
-    def fetch_series(self, series_id: str, on_rate_limit: RLCallBack | None = None) -> ComicSeries:
-        return self._format_series(self._fetch_series(int(series_id), on_rate_limit=on_rate_limit))
+    def fetch_series(self, series_id: str) -> ComicSeries:
+        return self._format_series(self._fetch_series(int(series_id)))
 
-    def _fetch_series(
-        self,
-        series_id: int,
-        on_rate_limit: RLCallBack | None = None,
-    ) -> MUSeries:
+    def _fetch_series(self, series_id: int) -> MUSeries:
         cvc = ComicCacher(self.cache_folder, self.version)
         cached_series = cvc.get_series_info(str(series_id), self.id)
 
@@ -602,7 +577,7 @@ class MangaUpdatesTalker(ComicTalker):
             return json.loads(cached_series[0].data)
 
         issue_url = urljoin(self.api_url, f"series/{series_id}")
-        mu_response: MUSeries = self._get_mu_content(issue_url, {}, on_rate_limit=on_rate_limit)
+        mu_response: MUSeries = self._get_mu_content(issue_url, {})
 
         # Series will now have publisher so update cache record
         # Cache raw data
@@ -615,17 +590,11 @@ class MangaUpdatesTalker(ComicTalker):
         return mu_response
 
     def fetch_issues_by_series_issue_num_and_year(
-        self,
-        series_id_list: list[str],
-        issue_number: str,
-        year: str | int | None,
-        on_rate_limit: RLCallBack | None = None,
+        self, series_id_list: list[str], issue_number: str, year: str | int | None
     ) -> list[GenericMetadata]:
         series_list = []
         for series_id in series_id_list:
-            series_list.append(
-                self._map_comic_issue_to_metadata(self._fetch_series(int(series_id), on_rate_limit=on_rate_limit))
-            )
+            series_list.append(self._map_comic_issue_to_metadata(self._fetch_series(int(series_id))))
 
         return series_list
 
