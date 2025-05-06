@@ -28,7 +28,7 @@ from urllib.parse import urljoin
 import requests
 import settngs
 from comicapi import utils
-from comicapi.genericmetadata import ComicSeries, GenericMetadata, MetadataOrigin
+from comicapi.genericmetadata import ComicSeries, GenericMetadata, ImageHash, MetadataOrigin
 from comictalker import talker_utils
 from comictalker.comiccacher import ComicCacher
 from comictalker.comiccacher import Series as CCSeries
@@ -221,6 +221,7 @@ limiter = Limiter(RequestRate(5, Duration.SECOND))
 class MangaUpdatesTalker(ComicTalker):
     name: str = "MangaUpdates"
     id: str = "mangaupdates"
+    comictagger_min_ver: str = "1.6.0b5"
     logo_url: str = "https://www.mangaupdates.com/images/mascot.gif"
     website: str = "https://mangaupdates.com/"
     attribution: str = f"Metadata provided by <a href='{website}'>{name}</a>"
@@ -604,7 +605,8 @@ class MangaUpdatesTalker(ComicTalker):
             series_id=utils.xlate(series["series_id"]),
             issue_id=utils.xlate(series["series_id"]),
         )
-        md.cover_image = series["image"]["url"].get("original", "")
+
+        md._cover_image = ImageHash(URL=series["image"]["url"].get("original", ""), Hash=0, Kind="")
 
         for alias in series["associated"]:
             md.series_aliases.add(alias["title"])
