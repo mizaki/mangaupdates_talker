@@ -222,7 +222,7 @@ class MangaUpdatesTalker(ComicTalker):
     name: str = "MangaUpdates"
     id: str = "mangaupdates"
     comictagger_min_ver: str = "1.6.0b5"
-    logo_url: str = "https://www.mangaupdates.com/images/mascot.gif"
+    logo_url: str = "https://www.mangaupdates.com/images/mascot.png"
     website: str = "https://mangaupdates.com/"
     attribution: str = f"Metadata provided by <a href='{website}'>{name}</a>"
     about: str = (
